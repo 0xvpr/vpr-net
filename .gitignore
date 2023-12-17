@@ -1,0 +1,6 @@
+# Configuration
+.vscode/**
+compile_flags.txt
+
+# Compiled
+**/**.exe
