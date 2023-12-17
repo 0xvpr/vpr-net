@@ -1,6 +1,18 @@
 # Configuration
-.vscode/**
 compile_flags.txt
+*.vscode
+
+# Directories
+bin
+build
+lib
 
 # Compiled
-**/**.exe
+*.a
+*.dll
+*.exe
+*.lib
+*.o
+*.obj
+*.out
+*.so
