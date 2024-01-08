@@ -10,14 +10,15 @@
 #include <algorithm>
 #include <functional>
 
-#include <vector>
 #include <sstream>
 #include <string>
+#include <vector>
 #include <map>
 
 #include <optional>
 
 #include <iostream>
+#include <fstream> // TODO logging
 #include <cstring>
 
 namespace vprnet {
