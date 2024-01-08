@@ -49,22 +49,23 @@ namespace vprnet {
     typedef int* socklen_t;
 
     using void_callback = std::function<void()>;
-    using i32_callback = std::function<void(std::int32_t)>;
-    using i64_callback = std::function<void(std::int64_t)>;
-    using u32_callback = std::function<void(std::uint32_t)>;
-    using u64_callback = std::function<void(std::uint64_t)>;
-    using f32_callback = std::function<void(float)>;
-    using f64_callback = std::function<void(double)>;
+    using i32_callback  = std::function<void(std::int32_t)>;
+    using i64_callback  = std::function<void(std::int64_t)>;
+    using u32_callback  = std::function<void(std::uint32_t)>;
+    using u64_callback  = std::function<void(std::uint64_t)>;
+    using f32_callback  = std::function<void(float)>;
+    using f64_callback  = std::function<void(double)>;
 
     using variant_callback_t = std::variant<void_callback,
-                                            i32_callback,
-                                            i64_callback,
-                                            u32_callback,
-                                            u64_callback,
-                                            f32_callback,
-                                            f64_callback>;
+                                             i32_callback,
+                                             i64_callback,
+                                             u32_callback,
+                                             u64_callback,
+                                             f32_callback,
+                                             f64_callback>;
 
-    typedef std::map<std::string, std::pair<variant_callback_t, types>> endpoint_t;
+    typedef std::map<std::string,
+                     std::pair<variant_callback_t, types>> endpoint_t;
 
     typedef std::shared_ptr<vprnet::HttpClient>   http_client_ptr;
     typedef std::unique_ptr<vprnet::HttpServer>   http_server_ptr;
