@@ -3,16 +3,27 @@
 #include "vprnet.hpp"
 
 vprnet::void_callback a = []() -> void {
-    std::cout << "A activated\n";
+    std::cout << "A action performed\n";
 };
 
 int main() {
     auto server = vprnet::HttpServer::instance("vpr-net example");
 
     server.set_endpoint( "/a", a, vprnet::types::button);
-    server.set_endpoint( "/b", (vprnet::void_callback)[]() { std::cout << "B activated.\n"; }, vprnet::types::button);
-    server.set_endpoint( "/c", (vprnet::void_callback)[]() { std::cout << "C toggled.\n"; },   vprnet::types::toggle);
-    server.set_endpoint( "/d", (vprnet::i32_callback)[](auto value) { std::cout << "D set to " << value << "\n"; }, vprnet::types::i32_field);
+
+    bool b_toggle = false;
+    server.set_endpoint( "/b", (vprnet::void_callback)[&]() {
+            b_toggle = !b_toggle;
+            std::cout << "B " << (b_toggle ? "activated" : "deactivated") << "\n";
+        },
+        vprnet::types::toggle
+    );
+
+    server.set_endpoint( "/d", (vprnet::i32_callback)[](auto value) {
+            std::cout << "C set to " << value << "\n";
+        },
+        vprnet::types::i32_field
+    );
 
     server.serve();
 
