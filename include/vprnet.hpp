@@ -275,7 +275,7 @@ namespace vprnet {
             "      }\r\n"
             "    </style>\r\n";
 
-        auto head = [](auto title) -> const std::string {
+        constexpr auto head = [](auto title) -> const std::string {
             std::stringstream ss;
             ss << "<!DOCTYPE html>\r\n"
                   "<html lang=\"en\">\r\n"
@@ -492,7 +492,18 @@ public:
             std::sregex_iterator endpoint_end;
 
             if (endpoint_match == endpoint_end) {
+                auto err_response = HttpResponse(
+                    resources::StatusLine( "HTTP/1.1", 404 ),
+                    resources::Headers{
+                        {
+                            resources::Header{ "Content-Type", "text/plain" }
+                        }
+                    },
+                    std::string("Error 404. Page not found.\r\n")
+                );
+                send(client_socket_, err_response.raw_data(), err_response.size(), 0);
                 closesocket(client_socket_);
+
                 continue;
             }
 
@@ -509,8 +520,8 @@ public:
                     generate_payload()
                 );
                 send(client_socket_, response.raw_data(), response.size(), 0);
-
                 closesocket(client_socket_);
+
                 continue;
             }
 
@@ -540,22 +551,110 @@ public:
                 }
                 case types::i32_field:
                 {
-                    std::regex query_pattern("GET /[a-zA-Z0-9]*?([A-Za-z0-9]*)");
+                    std::regex query_pattern(R"(\?value=(\d+))");
                     std::sregex_iterator query(recv_str.begin(), recv_str.end(), query_pattern);
-                    std::sregex_iterator query_end;
+                    std::smatch query_match;
 
-                    if (query != query_end)
-                    {
-                        const std::string str_value = std::smatch(*query).str();
+                    if (std::regex_search(recv_str, query_match, query_pattern)) {
+                        const std::string str_value = query_match[1];
                         const std::int32_t int_value = std::stoi(str_value);
+
                         std::get<i32_callback>(endpoints_[endpoint].first)(int_value);
                     }
+
+                    break;
+                }
+                case types::u32_field:
+                {
+                    std::regex query_pattern(R"(\?value=(\d+))");
+                    std::sregex_iterator query(recv_str.begin(), recv_str.end(), query_pattern);
+                    std::smatch query_match;
+
+                    if (std::regex_search(recv_str, query_match, query_pattern)) {
+                        const std::string str_value = query_match[1];
+                        const std::uint32_t int_value = std::stoul(str_value);
+
+                        std::get<u32_callback>(endpoints_[endpoint].first)(int_value);
+                    }
+
+                    break;
+                }
+                case types::i64_field:
+                {
+                    std::regex query_pattern(R"(\?value=(\d+))");
+                    std::sregex_iterator query(recv_str.begin(), recv_str.end(), query_pattern);
+                    std::smatch query_match;
+
+                    if (std::regex_search(recv_str, query_match, query_pattern)) {
+                        const std::string str_value = query_match[1];
+                        const std::int64_t int_value = std::stoll(str_value);
+
+                        std::get<i64_callback>(endpoints_[endpoint].first)(int_value);
+                    }
+
+                    break;
+                }
+                case types::u64_field:
+                {
+                    std::regex query_pattern(R"(\?value=(\d+))");
+                    std::sregex_iterator query(recv_str.begin(), recv_str.end(), query_pattern);
+                    std::smatch query_match;
+
+                    if (std::regex_search(recv_str, query_match, query_pattern)) {
+                        const std::string str_value = query_match[1];
+                        const std::uint64_t int_value = std::stoull(str_value);
+
+                        std::get<u64_callback>(endpoints_[endpoint].first)(int_value);
+                    }
+
+                    break;
+                }
+                case types::f32_field:
+                {
+                    std::regex query_pattern(R"(\?value=(\d+))");
+                    std::sregex_iterator query(recv_str.begin(), recv_str.end(), query_pattern);
+                    std::smatch query_match;
+
+                    if (std::regex_search(recv_str, query_match, query_pattern)) {
+                        const std::string str_value = query_match[1];
+                        const float float_value = std::stof(str_value);
+
+                        std::get<f32_callback>(endpoints_[endpoint].first)(float_value);
+                    }
+
+                    break;
+                }
+                case types::f64_field:
+                {
+                    std::regex query_pattern(R"(\?value=(\d+))");
+                    std::sregex_iterator query(recv_str.begin(), recv_str.end(), query_pattern);
+                    std::smatch query_match;
+
+                    if (std::regex_search(recv_str, query_match, query_pattern)) {
+                        const std::string str_value = query_match[1];
+                        const double double_value = std::stod(str_value);
+
+                        std::get<f64_callback>(endpoints_[endpoint].first)(double_value);
+                    }
+
+                    break;
                 }
                 default:
                 {
                     break;
                 }
             }
+
+            auto response = HttpResponse(
+                resources::StatusLine( "HTTP/1.1", 200 ),
+                resources::Headers{
+                    {
+                        resources::Header( "Content-Type", "text/html" )
+                    }
+                },
+                generate_payload()
+            );
+            send(client_socket_, response.raw_data(), response.size(), 0);
 
             closesocket(client_socket_);
         }
@@ -638,7 +737,7 @@ protected:
                           case types::i32_field:
                           {
                               body += "    <form id=\"snip_content_cell\">\r\n"
-                                      "      <input colspan=\"3\" type=\"number\" name=\"number_field\" placeholder=\"Set " + endpoint.substr(1) + " value...\" onclick=\"call_api_with_value('" + endpoint + "')\">\r\n"
+                                      "      <input colspan=\"3\" type=\"number\" name=\"value\" placeholder=\"Set " + endpoint.substr(1) + " value...\" onclick=\"call_api_with_value('" + endpoint + "')\">\r\n"
                                       "    </form>";
                               break;
                           }
@@ -653,7 +752,6 @@ protected:
 
                   return body;
               }()
-        //    << "      </table>"
            << "    </div>"
               "  </body>\r\n"
            << element::js

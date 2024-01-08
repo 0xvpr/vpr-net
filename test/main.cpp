@@ -19,7 +19,7 @@ int main() {
         vprnet::types::toggle
     );
 
-    server.set_endpoint( "/d", (vprnet::i32_callback)[](auto value) {
+    server.set_endpoint( "/c", (vprnet::i32_callback)[](auto value) {
             std::cout << "C set to " << value << "\n";
         },
         vprnet::types::i32_field
