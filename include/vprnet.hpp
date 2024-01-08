@@ -16,6 +16,7 @@
 #include <map>
 
 #include <optional>
+#include <variant>
 
 #include <iostream>
 #include <fstream> // TODO logging
@@ -34,13 +35,36 @@ namespace vprnet {
     } // namespace resources
 
     enum types : std::uint32_t {
-        button = 0,
-        toggle = 1,
-        field  = 2
+        button    = 0,
+        toggle    = 1,
+        i32_field = 2,
+        i64_field = 3,
+        u32_field = 4,
+        u64_field = 5,
+        f32_field = 6,
+        f64_field = 7,
+        str_field = 8
     };
 
     typedef int* socklen_t;
-    typedef std::map<std::string, std::pair<std::function<void()>,std::uint32_t>> endpoint_t;
+
+    using void_callback = std::function<void()>;
+    using i32_callback = std::function<void(std::int32_t)>;
+    using i64_callback = std::function<void(std::int64_t)>;
+    using u32_callback = std::function<void(std::uint32_t)>;
+    using u64_callback = std::function<void(std::uint64_t)>;
+    using f32_callback = std::function<void(float)>;
+    using f64_callback = std::function<void(double)>;
+
+    using variant_callback_t = std::variant<void_callback,
+                                            i32_callback,
+                                            i64_callback,
+                                            u32_callback,
+                                            u64_callback,
+                                            f32_callback,
+                                            f64_callback>;
+
+    typedef std::map<std::string, std::pair<variant_callback_t, types>> endpoint_t;
 
     typedef std::shared_ptr<vprnet::HttpClient>   http_client_ptr;
     typedef std::unique_ptr<vprnet::HttpServer>   http_server_ptr;
@@ -48,139 +72,215 @@ namespace vprnet {
     typedef std::shared_ptr<vprnet::HttpResponse> http_response_ptr;
 
     namespace element {
+
+        const std::string css =
+            "    <style>\r\n"
+            "      html, body\r\n"
+            "      {\r\n"
+            "        font-family: \"Courier New\", Courier, monospace;\r\n"
+            "        height:      95%;\r\n"
+            "        background:  #050505;\r\n"
+            "        margin:      0;\r\n"
+            "        padding:     0;\r\n"
+            "        overflow-x:  hidden;\r\n"
+            "      }\r\n"
+            "      button, input\r\n"
+            "      {\r\n"
+            "        max-width:        40%;\r\n"
+            "        background-color: #808080;\r\n"
+            "        color:            #E0E0E0;\r\n"
+            "      }\r\n"
+            "      \r\n"
+            "      #player_cont\r\n"
+            "      {\r\n"
+            "        font-family: \"Courier New\", Courier, monospace;\r\n"
+            "        text-decoration: none;\r\n"
+            "      }\r\n"
+            "      \r\n"
+            "      #snip_content_cell\r\n"
+            "      {\r\n"
+            "        text-decoration: none;\r\n"
+            "        text-align: center;\r\n"
+            "        vertical-align: middle;\r\n"
+            "        color: #ffffff;\r\n"
+            "        width: 40%;\r\n"
+            "        max-width: 100%;\r\n"
+            "        height: 80%;\r\n"
+            "        margin: auto;\r\n"
+            "      }\r\n"
+            "      \r\n"
+            "      .sidebar\r\n"
+            "      {\r\n"
+            "        position: fixed;\r\n"
+            "        top: 0;\r\n"
+            "        left: 0;\r\n"
+            "        height: 100%;\r\n"
+            "        width: 200px;\r\n"
+            "        max-width: 20%;\r\n"
+            "        padding: 10px 14px;\r\n"
+            "        background: #202020;\r\n"
+            "      }\r\n"
+            "      \r\n"
+            "      .sidebar .control_panel\r\n"
+            "      {\r\n"
+            "         display: flex;\r\n"
+            "         align-items: center;\r\n"
+            "      }\r\n"
+            "      .sidebar .text\r\n"
+            "      {\r\n"
+            "        font-size: 16px;\r\n"
+            "        font-weight: 400;\r\n"
+            "      }\r\n"
+            "      \r\n"
+            "      .sidebar .text .logo_text\r\n"
+            "      {\r\n"
+            "        font-size: 20px;\r\n"
+            "        font-weight: 500;\r\n"
+            "      }\r\n"
+            "      \r\n"
+            "      .sidebar .text .logo_description\r\n"
+            "      {\r\n"
+            "        font-size: 14px;\r\n"
+            "        font-weight: 400;\r\n"
+            "      }\r\n"
+            "      \r\n"
+            "      .sidebar header .toggle\r\n"
+            "      {\r\n"
+            "        position: absolute;\r\n"
+            "        top: 6%;\r\n"
+            "        right: -5%;\r\n"
+            "        height: 25px;\r\n"
+            "        width: 25px;\r\n"
+            "        background: #404040;\r\n"
+            "        color: #202020;\r\n"
+            "        transform: translateY(-50%);\r\n"
+            "        display: flex;\r\n"
+            "        align-items: center;\r\n"
+            "        justify-content: center;\r\n"
+            "        border-radius: 50%;\r\n"
+            "        border-color: #000000;"
+            "        font-size: 22px\r\n"
+            "      }\r\n"
+            "      .snip_link\r\n"
+            "      {\r\n"
+            "        /* text-decoration: none; */\r\n"
+            "        color: #ffffff;\r\n"
+            "        font-size:1.0em;\r\n"
+            "      }\r\n"
+            "      \r\n"
+            "      .buy_link\r\n"
+            "      {\r\n"
+            "        color:#ffffff;\r\n"
+            "        font-size:1.0em;\r\n"
+            "      }\r\n"
+            "      \r\n"
+            "      #snip_index_cell\r\n"
+            "      {\r\n"
+            "        text-align: center;\r\n"
+            "        vertical-align:top;\r\n"
+            "        height:4em; color: #eeeeee;\r\n"
+            "      }\r\n"
+            "      #next_cell,#prev_cell\r\n"
+            "      {\r\n"
+            "        text-align: center;\r\n"
+            "        vertical-align:top;\r\n"
+            "      }\r\n"
+            "      \r\n"
+            "      #play_cont_cell, #return_cell,#rehero_cell\r\n"
+            "      {\r\n"
+            "        text-align: center;\r\n"
+            "        vertical-align:top;\r\n"
+            "        width: 33%;\r\n"
+            "        white-space: nowrap;\r\n"
+            "      }\r\n"
+            "      \r\n"
+            "      #xchg_rax\r\n"
+            "      {\r\n"
+            "        text-align: center;\r\n"
+            "        vertical-align:top;\r\n"
+            "        white-space: nowrap;\r\n"
+            "        color:#eeeeee;\r\n"
+            "      }\r\n"
+            "      \r\n"
+            "      #play_cont_cell\r\n"
+            "      {\r\n"
+            "        text-align: center;\r\n"
+            "        white-space: nowrap;\r\n"
+            "        color:#eeeeee;\r\n"
+            "      }\r\n"
+            "      \r\n"
+            "      #lower_table\r\n"
+            "      {\r\n"
+            "        height: 97%;\r\n"
+            "      }\r\n"
+            "      \r\n"
+            "      #lower_links_table\r\n"
+            "      {\r\n"
+            "        width: 97%;\r\n"
+            "      }\r\n"
+            "      \r\n"
+            "      #upper_table\r\n"
+            "      {\r\n"
+            "        height: 5%;\r\n"
+            "      }\r\n"
+            "      \r\n"
+            "      #lower_menu_cell\r\n"
+            "      {\r\n"
+            "        text-align: center;\r\n"
+            "      }\r\n"
+            "      \r\n"
+            "      #contact_cell\r\n"
+            "      {\r\n"
+            "        color: #333333;\r\n"
+            "        text-align: center;\r\n"
+            "      }\r\n"
+            "      \r\n"
+            "      #buy_comment\r\n"
+            "      {\r\n"
+            "        color:#eeeeee;\r\n"
+            "        text-align:center;\r\n"
+            "        background-color:#222222;\r\n"
+            "        padding:0.8em;\r\n"
+            "      }\r\n"
+            "      \r\n"
+            "      a:hover\r\n"
+            "      {\r\n"
+            "        color: #10ff10;\r\n"
+            "      }\r\n"
+            "      \r\n"
+            "      table\r\n"
+            "      {\r\n"
+            "        margin-left: auto;\r\n"
+            "        margin-right: auto;\r\n"
+            "      }\r\n"
+            "      \r\n"
+            "      pre\r\n"
+            "      {\r\n"
+            "        font-size: 1.2em;\r\n"
+            "      }\r\n"
+            "      \r\n"
+            "      .menu_link\r\n"
+            "      {\r\n"
+            "        /* .link_next_prev,.return_link { */\r\n"
+            "        color: #8f8f8f;\r\n"
+            "        font-size:1.0em;\r\n"
+            "        /* text-decoration:none; */\r\n"
+            "      }\r\n"
+            "      \r\n"
+            "      .link_disabled\r\n"
+            "       {\r\n"
+            "        color: #262626;\r\n"
+            "        font-size:1.0em;\r\n"
+            "        /* visibility:hidden; */\r\n"
+            "      }\r\n"
+            "    </style>\r\n";
+
         auto head = [](auto title) -> const std::string {
             std::stringstream ss;
             ss << "<!DOCTYPE html>\r\n"
                   "<html lang=\"en\">\r\n"
-                  "  <head>\r\n"
-                  "    <style>\r\n"
-                  "      html,body {\r\n"
-                  "          font-family: \"Courier New\", Courier, monospace;\r\n"
-                  "          height: 95%;\r\n"
-                  "          background: #050505;\r\n"
-                  "          margin: 0;\r\n"
-                  "          padding: 0;\r\n"
-                  "          overflow-x: hidden;\r\n"
-                  "      }\r\n"
-                  "      button {\r\n"
-                  "          background-color: #808080;\r\n"
-                  "          color: #E0E0E0;\r\n"
-                  "      }\r\n"
-                  "      \r\n"
-                  "      #player_cont {\r\n"
-                  "          font-family: \"Courier New\", Courier, monospace;\r\n"
-                  "          text-decoration: none;\r\n"
-                  "      }\r\n"
-                  "      \r\n"
-                  "      #snip_content_cell {\r\n"
-                  "          text-decoration: none;\r\n"
-                  "          text-align: center;\r\n"
-                  "          vertical-align: center;\r\n"
-                  "          color: #ffffff;\r\n"
-                  "          width: 40%;\r\n"
-                  "          max-width: 100%;\r\n"
-                  "          height: 80%;\r\n"
-                  "          margin: auto;\r\n"
-                  "      }\r\n"
-                  "      \r\n"
-                  "      \r\n"
-                  "      .snip_link {\r\n"
-                  "          /* text-decoration: none; */\r\n"
-                  "          color: #ffffff;\r\n"
-                  "          font-size:1.0em;\r\n"
-                  "      }\r\n"
-                  "      \r\n"
-                  "      .buy_link {\r\n"
-                  "          color:#ffffff;\r\n"
-                  "          font-size:1.0em;\r\n"
-                  "      }\r\n"
-                  "      \r\n"
-                  "      #snip_index_cell {\r\n"
-                  "          text-align: center;\r\n"
-                  "          vertical-align:top;\r\n"
-                  "          height:4em; color: #eeeeee;\r\n"
-                  "      }\r\n"
-                  "      #next_cell,#prev_cell {\r\n"
-                  "          text-align: center;\r\n"
-                  "          vertical-align:top;\r\n"
-                  "      }\r\n"
-                  "      \r\n"
-                  "      #play_cont_cell, #return_cell,#rehero_cell {\r\n"
-                  "          text-align: center;\r\n"
-                  "          vertical-align:top;\r\n"
-                  "          width: 33%;\r\n"
-                  "          white-space: nowrap;\r\n"
-                  "      }\r\n"
-                  "      \r\n"
-                  "      #xchg_rax {\r\n"
-                  "          text-align: center;\r\n"
-                  "          vertical-align:top;\r\n"
-                  "          white-space: nowrap;\r\n"
-                  "          color:#eeeeee;\r\n"
-                  "      }\r\n"
-                  "      \r\n"
-                  "      #play_cont_cell {\r\n"
-                  "          text-align: center;\r\n"
-                  "          white-space: nowrap;\r\n"
-                  "          color:#eeeeee;\r\n"
-                  "      }\r\n"
-                  "      \r\n"
-                  "      \r\n"
-                  "      #lower_table {\r\n"
-                  "          height: 97%;\r\n"
-                  "      }\r\n"
-                  "      \r\n"
-                  "      #lower_links_table {\r\n"
-                  "          width: 97%;\r\n"
-                  "      }\r\n"
-                  "      \r\n"
-                  "      #upper_table {\r\n"
-                  "          height: 5%;\r\n"
-                  "      }\r\n"
-                  "      \r\n"
-                  "      #lower_menu_cell {\r\n"
-                  "          text-align: center;\r\n"
-                  "      }\r\n"
-                  "      \r\n"
-                  "      #contact_cell {\r\n"
-                  "          color: #333333;\r\n"
-                  "          text-align: center;\r\n"
-                  "      \r\n"
-                  "      }\r\n"
-                  "      \r\n"
-                  "      #buy_comment {\r\n"
-                  "          color:#eeeeee;\r\n"
-                  "          text-align:center;\r\n"
-                  "          background-color:#222222;\r\n"
-                  "          padding:0.8em;\r\n"
-                  "      }\r\n"
-                  "      \r\n"
-                  "      a:hover {\r\n"
-                  "          color: #10ff10;\r\n"
-                  "      }\r\n"
-                  "      \r\n"
-                  "      table {\r\n"
-                  "          margin-left: auto;\r\n"
-                  "          margin-right: auto;\r\n"
-                  "      }\r\n"
-                  "      \r\n"
-                  "      pre {\r\n"
-                  "          font-size: 1.2em;\r\n"
-                  "      }\r\n"
-                  "      \r\n"
-                  "      .menu_link {\r\n"
-                  "      /* .link_next_prev,.return_link { */\r\n"
-                  "          color: #8f8f8f;\r\n"
-                  "          font-size:1.0em;\r\n"
-                  "          /* text-decoration:none; */\r\n"
-                  "      }\r\n"
-                  "      \r\n"
-                  "      .link_disabled {\r\n"
-                  "          color: #262626;\r\n"
-                  "          font-size:1.0em;\r\n"
-                  "          /* visibility:hidden; */\r\n"
-                  "      }\r\n"
-                  "    </style>\r\n"
+               << css
+               << "  <head>\r\n"
                   "    <meta charset=\"UTF-8\">\r\n"
                   "    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\r\n"
                   "    <title id=\"snip_content_cell\">" << title << "</title>\r\n"
@@ -189,7 +289,26 @@ namespace vprnet {
             return ss.str();
         };
 
+        const std::string left_sidebar = 
+            "<nav class=\"sidebar\">\r\n"
+            "  <header>\r\n"
+            "    <div class=\"control_panel\">\r\n"
+            "      <div class=\"logo_text\"\r\n"
+            "        <span class=\"panel_title\" id=\"snip_content_cell\">VPR-NET</span>\r\n"
+            "      </div>\r\n"
+            "      <div class=\"logo_description\"\r\n"
+            "        <span class=\"panel_description\" id=\"snip_content_cell\">Control Panel</span>\r\n"
+            "      </div>\r\n"
+            "    </div>\r\n"
+            "\r\n"
+            "    <i class=\"bx bx-cheveron-right toggle\"></i>\r\n"
+            "  </header>\r\n"
+            "</nav>\r\n"
+            "<div class=\"sidebar_content\"\r\n"
+            "</div>\r\n";
+
         const std::string js =
+            "  <script src=\"https://unpkg.com/boxicons@2.1.4/dist/boxicons.js\"></script>\r\n"
             "  <script>\r\n"
             "    function call_api(endpoint) {\r\n"
             "      fetch(endpoint)\r\n"
@@ -368,57 +487,88 @@ public:
             recv(client_socket_, buffer, sizeof(buffer)-1, 0);
             std::string recv_str(buffer);
 
-            std::regex pattern("GET /[a-zA-z0-9]*");
-            std::sregex_iterator match(recv_str.begin(), recv_str.end(), pattern);
-            std::sregex_iterator end;
+            std::regex endpoint_pattern("GET /[a-zA-Z0-9]*");
+            std::sregex_iterator endpoint_match(recv_str.begin(), recv_str.end(), endpoint_pattern);
+            std::sregex_iterator endpoint_end;
 
-            if (match != end) {
-                std::string endpoint = std::smatch(*match).str().substr(4);
-                if (endpoints_.find(endpoint) != endpoints_.end()) {
-                    endpoints_[endpoint].first();
-                } else if ( endpoint != "/" ){
-                    auto response = HttpResponse(
-                        resources::StatusLine( "HTTP/1.1", 404 ),
-                        resources::Headers{
-                            {
-                                resources::Header{ "Content-Type", "text/plain" }
-                            }
-                        },
-                        std::string("Error 404. Page not found.\r\n")
-                    );
-                    send(client_socket_, response.raw_data(), response.size(), 0);
-                    closesocket(client_socket_);
-
-                    continue;
-                }
-            } else {
+            if (endpoint_match == endpoint_end) {
                 closesocket(client_socket_);
-                
                 continue;
             }
 
-            auto response = HttpResponse(
-                resources::StatusLine( "HTTP/1.1", 200 ),
-                resources::Headers{
-                    {
-                        resources::Header( "Content-Type", "text/html" )
-                    }
-                },
-                generate_payload()
-            );
+            std::string endpoint = std::smatch(*endpoint_match).str().substr(4);
+            if (endpoint == "/" || endpoint == "/home")
+            {
+                auto response = HttpResponse(
+                    resources::StatusLine( "HTTP/1.1", 200 ),
+                    resources::Headers{
+                        {
+                            resources::Header( "Content-Type", "text/html" )
+                        }
+                    },
+                    generate_payload()
+                );
+                send(client_socket_, response.raw_data(), response.size(), 0);
 
-            send(client_socket_, response.raw_data(), response.size(), 0);
+                closesocket(client_socket_);
+                continue;
+            }
+
+            if (endpoints_.find(endpoint) == endpoints_.end()) {
+                auto err_response = HttpResponse(
+                    resources::StatusLine( "HTTP/1.1", 404 ),
+                    resources::Headers{
+                        {
+                            resources::Header{ "Content-Type", "text/plain" }
+                        }
+                    },
+                    std::string("Error 404. Page not found.\r\n")
+                );
+                send(client_socket_, err_response.raw_data(), err_response.size(), 0);
+                closesocket(client_socket_);
+
+                continue;
+            }
+
+            const auto type = endpoints_[endpoint].second;
+            switch (type) {
+                case types::button:
+                case types::toggle:
+                {
+                    std::get<void_callback>(endpoints_[endpoint].first)();
+                    break;
+                }
+                case types::i32_field:
+                {
+                    std::regex query_pattern("GET /[a-zA-Z0-9]*?([A-Za-z0-9]*)");
+                    std::sregex_iterator query(recv_str.begin(), recv_str.end(), query_pattern);
+                    std::sregex_iterator query_end;
+
+                    if (query != query_end)
+                    {
+                        const std::string str_value = std::smatch(*query).str();
+                        const std::int32_t int_value = std::stoi(str_value);
+                        std::get<i32_callback>(endpoints_[endpoint].first)(int_value);
+                    }
+                }
+                default:
+                {
+                    break;
+                }
+            }
+
             closesocket(client_socket_);
         }
 
         return 1;
     }
 
-    bool set_endpoint(const std::string endpoint, std::function<void()> function, const std::uint32_t type) {
+    template <typename T>
+    bool set_endpoint(const std::string endpoint, T&& variant, const types type) {
         if (endpoints_.find(endpoint) != endpoints_.end()) {
             return false;
         }
-        endpoints_[endpoint] = { function, type };
+        endpoints_[endpoint] = { variant, type };
 
         return true;
     }
@@ -463,12 +613,12 @@ protected:
         std::stringstream ss;
 
         ss << element::head( title_ )
+           << element::left_sidebar
            << "  <body>\r\n"
               "    <div id=\"snip_index_cell\" colspan=\"3\"><h2>" << title_ << "</h2>\r\n"
               "      <br>\r\n"
               "      <br>\r\n"
               "      <br>\r\n"
-            //   "      <table colspan=\"2\">\r\n"
            << [&] () -> std::string {
                   std::string body;
                   body.reserve(2048);
@@ -485,10 +635,10 @@ protected:
                               body += "    <button id=\"snip_content_cell\" onclick=\"call_api('" + endpoint + "')\">Toggle " + endpoint.substr(1) + "</button>\r\n";
                               break;
                           }
-                          case types::field:
+                          case types::i32_field:
                           {
                               body += "    <form id=\"snip_content_cell\">\r\n"
-                                      "      <input type=\"number\" name=\"number_field\" placeholder=\"Set " + endpoint.substr(1) + " value...\" onclick=\"call_api_with_value('" + endpoint + "')\">\r\n"
+                                      "      <input colspan=\"3\" type=\"number\" name=\"number_field\" placeholder=\"Set " + endpoint.substr(1) + " value...\" onclick=\"call_api_with_value('" + endpoint + "')\">\r\n"
                                       "    </form>";
                               break;
                           }
