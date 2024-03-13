@@ -1,11 +1,13 @@
 # Configuration
+CMakeUserPresets.json
 compile_flags.txt
-*.vscode
 
 # Directories
+.venv
+.vscode
 bin
-build
 lib
+build
 
 # Compiled
 *.a

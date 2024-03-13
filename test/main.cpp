@@ -1,6 +1,6 @@
-#include <iostream>
-
 #include "vprnet.hpp"
+
+#include <iostream>
 
 vprnet::void_callback a = []() -> void {
     std::cout << "A action performed\n";

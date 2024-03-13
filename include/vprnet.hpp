@@ -276,11 +276,23 @@ namespace vprnet {
             "      }\r\n"
             "    </style>\r\n";
 
+        const std::string js =
+            "  <script src=\"https://unpkg.com/boxicons@2.1.4/dist/boxicons.js\"></script>\r\n"
+            "  <script>\r\n"
+            "    function call_api(endpoint) {\r\n"
+            "      fetch(endpoint)\r\n"
+            "      .then(response => response.json())\r\n"
+            "      .then(data => console.log(data))\r\n"
+            "      .catch(error => console.error('Error:', error));\r\n"
+            "    }\r\n"
+            "  </script>\r\n";
+
         constexpr auto head = [](auto title) -> const std::string {
             std::stringstream ss;
             ss << "<!DOCTYPE html>\r\n"
                   "<html lang=\"en\">\r\n"
                << css
+               << js
                << "  <head>\r\n"
                   "    <meta charset=\"UTF-8\">\r\n"
                   "    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\r\n"
@@ -307,17 +319,6 @@ namespace vprnet {
             "</nav>\r\n"
             "<div class=\"sidebar_content\"\r\n"
             "</div>\r\n";
-
-        const std::string js =
-            "  <script src=\"https://unpkg.com/boxicons@2.1.4/dist/boxicons.js\"></script>\r\n"
-            "  <script>\r\n"
-            "    function call_api(endpoint) {\r\n"
-            "      fetch(endpoint)\r\n"
-            "      .then(response => response.json())\r\n"
-            "      .then(data => console.log(data))\r\n"
-            "      .catch(error => console.error('Error:', error));\r\n"
-            "    }\r\n"
-            "  </script>\r\n";
     } // namespace element
 } // namespace vprnet
 
