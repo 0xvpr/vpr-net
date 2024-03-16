@@ -15,8 +15,8 @@ int main() {
     server.set_endpoint( "/b", (vprnet::void_callback)[&]() {
             b_toggle = !b_toggle;
             std::cout << "B " << (b_toggle ? "activated" : "deactivated") << "\n";
-        },
-        vprnet::types::toggle
+        }
+        // Defaults to vprnet::types::toggle
     );
 
     server.set_endpoint( "/c", (vprnet::i32_callback)[](auto value) {

@@ -6,8 +6,7 @@ project(    vpr-net
 
 set( CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
 
-add_subdirectory( test )
+add_subdirectory( tests/mock )
 
-# Optional: Set up testing (if you have tests to run)
 enable_testing()
-add_test(NAME Test COMMAND test/test.py)
+add_test(NAME Test COMMAND tests/test.py)

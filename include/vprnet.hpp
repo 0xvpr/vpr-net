@@ -1,26 +1,28 @@
 #ifndef   VPRNET_HEADER
 #define   VPRNET_HEADER
 
-#include <winsock2.h>
-#include <windows.h>
+#include  <winsock2.h>
+#include  <windows.h>
 
-#include <mutex>
-#include <regex>
-#include <memory>
-#include <algorithm>
-#include <functional>
+#include  <mutex>
+#include  <regex>
+#include  <memory>
+#include  <algorithm>
+#include  <functional>
 
-#include <sstream>
-#include <string>
-#include <vector>
-#include <map>
+#include  <sstream>
+#include  <string>
+#include  <vector>
+#include  <map>
 
-#include <optional>
-#include <variant>
+#include  <optional>
+#include  <variant>
 
-#include <iostream>
-#include <fstream> // TODO logging
-#include <cstring>
+#include  <iostream>
+#include  <fstream> // TODO logging
+#include  <cstring>
+
+#include  <cfloat>
 
 namespace vprnet {
     class HttpClient;
@@ -34,27 +36,95 @@ namespace vprnet {
         class Headers;
     } // namespace resources
 
-    enum types : std::uint32_t {
-        button    = 0,
-        toggle    = 1,
-        i32_field = 2,
-        i64_field = 3,
-        u32_field = 4,
-        u64_field = 5,
-        f32_field = 6,
-        f64_field = 7,
-        str_field = 8
+
+    typedef std::uint32_t button_t;
+    enum types : button_t {
+        button                          = 0,
+        toggle                          = 1,
+        i32_field                       = 2,
+        i64_field                       = 3,
+        u32_field                       = 4,
+        u64_field                       = 5,
+        f32_field                       = 6,
+        f64_field                       = 7,
+        str_field                       = 8
     };
 
-    typedef int* socklen_t;
+    typedef std::uint16_t status_t;
+    enum http_status : status_t {
+        continue_                       = 100,
+        switching_protocols             = 101,
+        processing                      = 102,
+        early_hints                     = 103,
+        ok                              = 200,
+        created                         = 201,
+        accepted                        = 202,
+        non_authoritative_information   = 203,
+        no_content                      = 204,
+        reset_content                   = 205,
+        partial_content                 = 206,
+        multi_status                    = 207,
+        already_reported                = 208,
+        im_used                         = 226,
+        multiple_choices                = 300,
+        moved_permanently               = 301,
+        found                           = 302,
+        see_other                       = 303,
+        not_modified                    = 304,
+        use_proxy                       = 305,
+        // unused                       = 306, // 306 is unused, so it's omitted
+        temporary_redirect              = 307,
+        permanent_redirect              = 308,
+        bad_request                     = 400,
+        unauthorized                    = 401,
+        payment_required                = 402,
+        forbidden                       = 403,
+        not_found                       = 404,
+        method_not_allowed              = 405,
+        not_acceptable                  = 406,
+        proxy_authentication_required   = 407,
+        request_timeout                 = 408,
+        conflict                        = 409,
+        gone                            = 410,
+        length_required                 = 411,
+        precondition_failed             = 412,
+        payload_too_large               = 413,
+        uri_too_long                    = 414,
+        unsupported_media_type          = 415,
+        range_not_satisfiable           = 416,
+        expectation_failed              = 417,
+        im_a_teapot                     = 418,
+        misdirected_request             = 421,
+        unprocessable_entity            = 422,
+        locked                          = 423,
+        failed_dependency               = 424,
+        too_early                       = 425,
+        upgrade_required                = 426,
+        precondition_required           = 428,
+        too_many_requests               = 429,
+        request_header_fields_too_large = 431,
+        unavailable_for_legal_reasons   = 451,
+        internal_server_error           = 500,
+        not_implemented                 = 501,
+        bad_gateway                     = 502,
+        service_unavailable             = 503,
+        gateway_timeout                 = 504,
+        http_version_not_supported      = 505,
+        variant_also_negotiates         = 506,
+        insufficient_storage            = 507,
+        loop_detected                   = 508,
+        not_extended                    = 510,
+        network_authentication_required = 511
+    };
 
     using void_callback = std::function<void()>;
     using i32_callback  = std::function<void(std::int32_t)>;
     using i64_callback  = std::function<void(std::int64_t)>;
     using u32_callback  = std::function<void(std::uint32_t)>;
     using u64_callback  = std::function<void(std::uint64_t)>;
-    using f32_callback  = std::function<void(float)>;
-    using f64_callback  = std::function<void(double)>;
+    using f32_callback  = std::function<void(std::float_t)>;
+    using f64_callback  = std::function<void(std::double_t)>;
+    using str_callback  = std::function<void(std::string)>;
 
     using variant_callback_t = std::variant<void_callback,
                                              i32_callback,
@@ -62,7 +132,8 @@ namespace vprnet {
                                              u32_callback,
                                              u64_callback,
                                              f32_callback,
-                                             f64_callback>;
+                                             f64_callback,
+                                             str_callback>;
 
     typedef std::map<std::string,
                      std::pair<variant_callback_t, types>> endpoint_t;
@@ -74,7 +145,7 @@ namespace vprnet {
 
     namespace element {
 
-        const std::string css =
+        const std::string default_css =
             "    <style>\r\n"
             "      html, body\r\n"
             "      {\r\n"
@@ -291,7 +362,7 @@ namespace vprnet {
             std::stringstream ss;
             ss << "<!DOCTYPE html>\r\n"
                   "<html lang=\"en\">\r\n"
-               << css
+               << default_css
                << js
                << "  <head>\r\n"
                   "    <meta charset=\"UTF-8\">\r\n"
@@ -343,15 +414,19 @@ public:
 
         switch (status_)
         {
-            case 200: {
+            case http_status::ok: {
                 result << " OK";
                 break;
             }
-            case 404: {
-                result << " Error: Not Found";
+            case http_status::bad_request: {
+                result << " Error: Bad request";
                 break;
             }
-            case 503: {
+            case http_status::not_found: {
+                result << " Error: Not found";
+                break;
+            }
+            case http_status::service_unavailable: {
                 result << " Error: Service unavailable";
                 break;
             }
@@ -364,8 +439,8 @@ public:
         return result.str();
     }
 private:
-    std::string   protocol_;
-    std::uint16_t   status_;
+    std::string     protocol_;
+    std::uint16_t     status_;
 };
 
 class vprnet::resources::Header {
@@ -420,6 +495,9 @@ class vprnet::HttpResponse {
 public:
     HttpResponse() = delete;
     HttpResponse(const HttpResponse& other) = delete;
+    HttpResponse& operator = (const HttpResponse& other) = delete;
+    HttpResponse(const HttpResponse&& other) = delete;
+    HttpResponse& operator = (const HttpResponse&& other) = delete;
 
     HttpResponse(const resources::StatusLine&& status_line, resources::Headers headers, const std::string&& payload)
     : status_line_ ( status_line ),
@@ -458,8 +536,9 @@ private:
 
 // Optionally, HTTP Server components
 class vprnet::HttpServer {
+    typedef int* socklen_t;
 public:
-    static inline HttpServer& instance(std::string title) {
+    static inline HttpServer& instance(std::string title) noexcept {
         std::lock_guard<std::mutex> lock( mutex_ );
         if (!instance_) {
             instance_ = http_server_ptr( new HttpServer(title) );
@@ -479,7 +558,7 @@ public:
         WSACleanup();
     }
 
-    inline int serve() {
+    inline int serve() noexcept {
         while ((client_socket_ = accept(server_socket_, (sockaddr *)&client_addr_, client_addr_length_)) != INVALID_SOCKET) {
             if (client_socket_ == INVALID_SOCKET) {
                 continue;
@@ -495,7 +574,7 @@ public:
 
             if (endpoint_match == endpoint_end) {
                 auto err_response = HttpResponse(
-                    resources::StatusLine( "HTTP/1.1", 404 ),
+                    resources::StatusLine( "HTTP/1.2", http_status::not_found ),
                     resources::Headers{
                         {
                             resources::Header{ "Content-Type", "text/plain" }
@@ -513,7 +592,7 @@ public:
             if (endpoint == "/" || endpoint == "/home")
             {
                 auto response = HttpResponse(
-                    resources::StatusLine( "HTTP/1.1", 200 ),
+                    resources::StatusLine( "HTTP/1.2", http_status::ok ),
                     resources::Headers{
                         {
                             resources::Header( "Content-Type", "text/html" )
@@ -529,7 +608,7 @@ public:
 
             if (endpoints_.find(endpoint) == endpoints_.end()) {
                 auto err_response = HttpResponse(
-                    resources::StatusLine( "HTTP/1.1", 404 ),
+                    resources::StatusLine( "HTTP/1.2", http_status::not_found ),
                     resources::Headers{
                         {
                             resources::Header{ "Content-Type", "text/plain" }
@@ -543,6 +622,7 @@ public:
                 continue;
             }
 
+            status_t status = http_status::ok;
             const auto type = endpoints_[endpoint].second;
             switch (type) {
                 case types::button:
@@ -562,6 +642,8 @@ public:
                         const std::int32_t int_value = std::stoi(str_value);
 
                         std::get<i32_callback>(endpoints_[endpoint].first)(int_value);
+                    } else {
+                        status = http_status::bad_request;
                     }
 
                     break;
@@ -577,6 +659,8 @@ public:
                         const std::uint32_t int_value = std::stoul(str_value);
 
                         std::get<u32_callback>(endpoints_[endpoint].first)(int_value);
+                    } else {
+                        status = http_status::bad_request;
                     }
 
                     break;
@@ -592,6 +676,8 @@ public:
                         const std::int64_t int_value = std::stoll(str_value);
 
                         std::get<i64_callback>(endpoints_[endpoint].first)(int_value);
+                    } else {
+                        status = http_status::bad_request;
                     }
 
                     break;
@@ -607,6 +693,8 @@ public:
                         const std::uint64_t int_value = std::stoull(str_value);
 
                         std::get<u64_callback>(endpoints_[endpoint].first)(int_value);
+                    } else {
+                        status = http_status::bad_request;
                     }
 
                     break;
@@ -622,6 +710,8 @@ public:
                         const float float_value = std::stof(str_value);
 
                         std::get<f32_callback>(endpoints_[endpoint].first)(float_value);
+                    } else {
+                        status = http_status::bad_request;
                     }
 
                     break;
@@ -637,6 +727,8 @@ public:
                         const double double_value = std::stod(str_value);
 
                         std::get<f64_callback>(endpoints_[endpoint].first)(double_value);
+                    } else {
+                        status = http_status::bad_request;
                     }
 
                     break;
@@ -648,7 +740,7 @@ public:
             }
 
             auto response = HttpResponse(
-                resources::StatusLine( "HTTP/1.1", 200 ),
+                resources::StatusLine( "HTTP/1.2", status ),
                 resources::Headers{
                     {
                         resources::Header( "Content-Type", "text/html" )
@@ -665,7 +757,7 @@ public:
     }
 
     template <typename T>
-    bool set_endpoint(const std::string endpoint, T&& variant, const types type) {
+    bool set_endpoint(const std::string endpoint, T&& variant, const types type = toggle) {
         if (endpoints_.find(endpoint) != endpoints_.end()) {
             return false;
         }
@@ -675,9 +767,9 @@ public:
     }
 
 protected:
-    HttpServer(std::string title)
+    HttpServer(std::string title, std::uint16_t port = 47001)
       : title_              ( title ),
-        port_               ( 47001 ),
+        port_               ( port ),
         last_status_        ( 0 ),
         wsaData_            ( { } ),
         server_addr_        ( { } ),
@@ -721,39 +813,49 @@ protected:
               "      <br>\r\n"
               "      <br>\r\n"
            << [&] () -> std::string {
-                  std::string body;
-                  body.reserve(2048);
-                  for (const auto& [endpoint, pair] : endpoints_) {
-                      const auto type = pair.second;
-                      switch (type) {
-                          case types::button:
-                          {
-                              body += "    <button id=\"snip_content_cell\" onclick=\"call_api('" + endpoint + "')\">Activate " + endpoint.substr(1) + "</button>\r\n";
-                              break;
-                          }
-                          case types::toggle:
-                          {
-                              body += "    <button id=\"snip_content_cell\" onclick=\"call_api('" + endpoint + "')\">Toggle " + endpoint.substr(1) + "</button>\r\n";
-                              break;
-                          }
-                          case types::i32_field:
-                          {
-                              body += "    <form id=\"snip_content_cell\">\r\n"
-                                      "      <input colspan=\"3\" type=\"number\" name=\"value\" placeholder=\"Set " + endpoint.substr(1) + " value...\" onclick=\"call_api_with_value('" + endpoint + "')\">\r\n"
-                                      "    </form>";
-                              break;
-                          }
-                          default:
-                          {
-                              break;
-                          }
-                      }
+                std::string body;
+                body.reserve(2048);
+                for (const auto& [endpoint, pair] : endpoints_) {
+                    const auto type = pair.second;
+                    switch (type) {
+                        case types::button:
+                        {
+                            body += "    <button id=\"snip_content_cell\" onclick=\"call_api('" + endpoint + "')\">Activate " + endpoint.substr(1) + "</button>\r\n";
+                            break;
+                        }
+                        case types::toggle:
+                        {
+                            body += "    <button id=\"snip_content_cell\" onclick=\"call_api('" + endpoint + "')\">Toggle " + endpoint.substr(1) + "</button>\r\n";
+                            break;
+                        }
+                        case types::i32_field:
+                        case types::i64_field:
+                        case types::u32_field:
+                        case types::u64_field:
+                        {
+                            body += "    <form id=\"snip_content_cell\">\r\n"
+                                    "      <input colspan=\"3\" type=\"number\" name=\"value\" placeholder=\"Set " + endpoint.substr(1) + " value...\" onclick=\"call_api_with_value('" + endpoint + "')\">\r\n"
+                                    "    </form>";
+                            break;
+                        }
+                        case types::f32_field:
+                        case types::f64_field: {
+                            break;
+                        }
+                        case types::str_field: {
+                            break;
+                        }
+                        default:
+                        {
+                            break;
+                        }
+                    }
 
-                      body += "    <br>\r\n";
-                  }
+                    body += "    <br>\r\n";
+                }
 
-                  return body;
-              }()
+                return body;
+           }()
            << "    </div>"
               "  </body>\r\n"
            << element::js
