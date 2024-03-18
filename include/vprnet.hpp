@@ -5,12 +5,13 @@
 #include  <ws2tcpip.h>
 #include  <windows.h>
 
-#include  <mutex>
-#include  <regex>
 #include  <memory>
+#include  <regex>
+#include  <mutex>
 
 #include  <functional>
 #include  <algorithm>
+#include  <charconv>
 #include  <random>
 
 #include  <sstream>
@@ -181,9 +182,12 @@ namespace vprnet {
             "      }\r\n"
             "      button, input\r\n"
             "      {\r\n"
+            "        text-decoration:  none;\r\n"
+            "        display:          inline-block;\r\n"
             "        max-width:        40%;\r\n"
             "        background-color: #808080;\r\n"
             "        color:            #E0E0E0;\r\n"
+            "        cursor:           hand;\r\n"
             "      }\r\n"
             "      \r\n"
             "      #player_cont\r\n"
@@ -239,7 +243,24 @@ namespace vprnet {
             "        font-weight: 400;\r\n"
             "      }\r\n"
             "      \r\n"
-            "      .sidebar header .toggle\r\n"
+            "      .sidebar .footer_buttons button\r\n"
+            "      {\r\n"
+            "        display: flex;\r\n"
+            "        flex-direction: column;\r\n"
+            "        align: center;\r\n"
+            "        vertical-align: bottom;\r\n"
+            "        max-width: 100%;\r\n"
+            "        width: 100%;\r\n"
+            "        font-size: 18px;\r\n"
+            "        font-weight: 400;\r\n"
+            "      }\r\n"
+            "      \r\n"
+            "      nav, footer\r\n"
+            "      {\r\n"
+            "        width: 100%;\r\n"
+            "      }\r\n"
+            "      \r\n"
+            "      .sidebar header toggle\r\n"
             "      {\r\n"
             "        position: absolute;\r\n"
             "        top: 6%;\r\n"
@@ -253,8 +274,9 @@ namespace vprnet {
             "        align-items: center;\r\n"
             "        justify-content: center;\r\n"
             "        border-radius: 50%;\r\n"
-            "        border-color: #000000;"
+            "        border-color: #000000;\r\n"
             "        font-size: 22px\r\n"
+            "        cursor: pointer;\r\n"
             "      }\r\n"
             "      .snip_link\r\n"
             "      {\r\n"
@@ -371,8 +393,18 @@ namespace vprnet {
             "    </style>\r\n";
 
         const std::string js =
-            //"  <script src=\"https://unpkg.com/boxicons@2.1.4/dist/boxicons.js\"></script>\r\n"
+            "  <script src=\"https://unpkg.com/boxicons@2.1.4/dist/boxicons.js\"></script>\r\n"
             "  <script>\r\n"
+            "    document.getElementById('toggle').addEventListener('click', function() {\r\n"
+            "      var sidebar = document.getElementById('sidebar');\r\n"
+            "\r\n"
+            "      if (sidebar.style.display === 'block') {\r\n"
+            "        sidebar.style.display = 'none';\r\n"
+            "      } else {\r\n"
+            "          sidebar.style.display = 'block';\r\n"
+            "      }\r\n"
+            "    });\r\n"
+            "\r\n"
             "    function fetch_endpoint(endpoint) {\r\n"
             "      fetch(endpoint)\r\n"
             "      .then(() => {})\r\n"
@@ -399,19 +431,23 @@ namespace vprnet {
             "<nav class=\"sidebar\">\r\n"
             "  <header>\r\n"
             "    <div class=\"control_panel\">\r\n"
-            "      <div class=\"logo_text\"\r\n"
+            "      <div class=\"logo_text\">\r\n"
             "        <span class=\"panel_title\" id=\"snip_content_cell\">VPR-NET</span>\r\n"
             "      </div>\r\n"
-            "      <div class=\"logo_description\"\r\n"
+            "      <div class=\"logo_description\">\r\n"
             "        <span class=\"panel_description\" id=\"snip_content_cell\">Control Panel</span>\r\n"
             "      </div>\r\n"
             "    </div>\r\n"
-            "\r\n"
             "    <i class=\"bx bx-cheveron-right toggle\"></i>\r\n"
             "  </header>\r\n"
-            "</nav>\r\n"
-            "<div class=\"sidebar_content\"\r\n"
-            "</div>\r\n";
+            "  <div class=\"sidebar_content\">\r\n"
+            "  </div>\r\n"
+            "  <footer>\r\n"
+            "    <div class=\"footer_buttons\">\r\n"
+            "      <a href='/term'><button id=\"terminate_button\">terminate session</button></a>\r\n"
+            "    </div>\r\n"
+            "  </footer>\r\n"
+            "</nav>\r\n";
     } // namespace element
 } // namespace vprnet
 
@@ -430,7 +466,7 @@ public:
     {
     }
 
-    std::string data() const {
+    std::string data() const noexcept {
         std::stringstream result;
         result << protocol_ << " " << status_;
 
@@ -668,132 +704,8 @@ public:
                 continue;
             }
 
-            status_t status = http_status::ok;
             const auto type = endpoints_[endpoint].second;
-            switch (type) {
-                case types::button:
-                case types::toggle:
-                {
-                    std::get<void_callback>(endpoints_[endpoint].first)();
-                    break;
-                }
-                case types::i32_field:
-                {
-                    std::regex query_pattern(R"(\?value=(\d+))");
-                    std::sregex_iterator query(recv_str.begin(), recv_str.end(), query_pattern);
-                    std::smatch query_match;
-
-                    if (std::regex_search(recv_str, query_match, query_pattern)) {
-                        const std::string str_value = query_match[1];
-                        const std::int32_t int_value = std::stoi(str_value);
-
-                        std::get<i32_callback>(endpoints_[endpoint].first)(int_value);
-                    } else {
-                        status = http_status::bad_request;
-                    }
-
-                    break;
-                }
-                case types::u32_field:
-                {
-                    std::regex query_pattern(R"(\?value=(\d+))");
-                    std::sregex_iterator query(recv_str.begin(), recv_str.end(), query_pattern);
-                    std::smatch query_match;
-
-                    if (std::regex_search(recv_str, query_match, query_pattern)) {
-                        const std::string str_value = query_match[1];
-                        const std::uint32_t int_value = std::stoul(str_value);
-
-                        std::get<u32_callback>(endpoints_[endpoint].first)(int_value);
-                    } else {
-                        status = http_status::bad_request;
-                    }
-
-                    break;
-                }
-                case types::i64_field:
-                {
-                    std::regex query_pattern(R"(\?value=(\d+))");
-                    std::sregex_iterator query(recv_str.begin(), recv_str.end(), query_pattern);
-                    std::smatch query_match;
-
-                    if (std::regex_search(recv_str, query_match, query_pattern)) {
-                        const std::string str_value = query_match[1];
-                        const std::int64_t int_value = std::stoll(str_value);
-
-                        std::get<i64_callback>(endpoints_[endpoint].first)(int_value);
-                    } else {
-                        status = http_status::bad_request;
-                    }
-
-                    break;
-                }
-                case types::u64_field:
-                {
-                    std::cerr << "u64\n";
-
-                    std::regex query_pattern(R"(\?value=(\d+))");
-                    std::sregex_iterator query(recv_str.begin(), recv_str.end(), query_pattern);
-                    std::smatch query_match;
-
-                    if (!std::regex_search(recv_str, query_match, query_pattern)) {
-                        status = http_status::bad_request;
-                        break;
-                    }
-                    std::cerr << "u64\n";
-                    const std::string str_value = query_match[1];
-
-                    errno = 0;
-                    const std::uint64_t int_value = std::stoull(str_value);
-                    if (errno) {
-                        status = http_status::bad_request;
-                        break;
-                    }
-
-                    std::cerr << "u64\n";
-
-                    std::get<u64_callback>(endpoints_[endpoint].first)(int_value);
-                    break;
-                }
-                case types::f32_field:
-                {
-                    std::regex query_pattern(R"(\?value=(\d+))");
-                    std::sregex_iterator query(recv_str.begin(), recv_str.end(), query_pattern);
-                    std::smatch query_match;
-
-                    if (std::regex_search(recv_str, query_match, query_pattern)) {
-                        const std::string str_value = query_match[1];
-                        const float float_value = std::stof(str_value);
-
-                        std::get<f32_callback>(endpoints_[endpoint].first)(float_value);
-                    } else {
-                        status = http_status::bad_request;
-                    }
-
-                    break;
-                }
-                case types::f64_field:
-                {
-                    std::regex query_pattern(R"(\?value=(\d+))");
-                    std::sregex_iterator query(recv_str.begin(), recv_str.end(), query_pattern);
-                    std::smatch query_match;
-
-                    if (std::regex_search(recv_str, query_match, query_pattern)) {
-                        const std::string str_value = query_match[1];
-                        const double double_value = std::stod(str_value);
-
-                        std::get<f64_callback>(endpoints_[endpoint].first)(double_value);
-                    } else {
-                        status = http_status::bad_request;
-                    }
-
-                    break;
-                }
-                default:
-                {
-                    break;
-                }
-            }
+            status_t status = execute_endpoint_callback(type, endpoint, recv_str);
 
             send_html_response(status, generate_payload());
             closesocket(client_socket_);
@@ -849,7 +761,7 @@ protected:
         }
     }
 
-    std::string generate_payload() const {
+    std::string generate_payload() const noexcept {
         std::stringstream ss;
 
         ss << element::head( title_ )
@@ -901,13 +813,11 @@ protected:
                     body += "    <br>\r\n";
 
                 }
-                body += "    <a href='/term'><button id=\"snip_content_cell\">terminate session</button></a>\r\n";
 
                 return body;
            }()
            << "    </div>"
               "  </body>\r\n"
-           << element::js
            << "</html>\r\n";
 
         return ss.str();
@@ -961,7 +871,7 @@ private:
         send(client_socket_, response.raw_data(), response.size(), 0);
     }
 
-    inline bool validate_session(const std::string& recv_str) const {
+    inline bool validate_session(const std::string& recv_str) const noexcept {
         std::regex query_pattern(R"(Cookie: SessionID=([A-Za-z0-9]{256}))");
         std::sregex_iterator query(recv_str.begin(), recv_str.end(), query_pattern);
         std::smatch query_match;
@@ -973,6 +883,143 @@ private:
         }
 
         return false;
+    }
+
+    inline status_t execute_endpoint_callback(auto type, auto endpoint, const std::string& recv_str) noexcept {
+        switch (type) {
+            case types::button:
+            case types::toggle:
+            {
+                std::get<void_callback>(endpoints_[endpoint].first)();
+                return http_status::ok;
+            }
+            case types::i32_field:
+            {
+                std::regex query_pattern(R"(\?value=(-?\d+))");
+                std::sregex_iterator query(recv_str.begin(), recv_str.end(), query_pattern);
+                std::smatch query_match;
+
+                if (!std::regex_search(recv_str, query_match, query_pattern)) {
+                    return http_status::bad_request;
+                }
+                const std::string str_value = query_match[1];
+
+                std::int32_t i32_value;
+                auto [ptr, ec] = std::from_chars(str_value.data(), str_value.data()+str_value.size(), i32_value, 10);
+                if (ec == std::errc::result_out_of_range) {
+                    return http_status::bad_request;
+                }
+
+                std::get<i32_callback>(endpoints_[endpoint].first)(i32_value);
+                return http_status::ok;
+            }
+            case types::u32_field:
+            {
+                std::regex query_pattern(R"(\?value=(\d+))");
+                std::sregex_iterator query(recv_str.begin(), recv_str.end(), query_pattern);
+                std::smatch query_match;
+
+                if (!std::regex_search(recv_str, query_match, query_pattern)) {
+                    return http_status::bad_request;
+                }
+                const std::string str_value = query_match[1];
+
+                std::uint32_t u32_value;
+                auto [ptr, ec] = std::from_chars(str_value.data(), str_value.data()+str_value.size(), u32_value, 10);
+                if (ec == std::errc::result_out_of_range) {
+                    return http_status::bad_request;
+                }
+
+                std::get<i64_callback>(endpoints_[endpoint].first)(u32_value);
+                return http_status::ok;
+            }
+            case types::i64_field:
+            {
+                std::regex query_pattern(R"(\?value=(-?\d+))");
+                std::sregex_iterator query(recv_str.begin(), recv_str.end(), query_pattern);
+                std::smatch query_match;
+
+                if (!std::regex_search(recv_str, query_match, query_pattern)) {
+                    return http_status::bad_request;
+                }
+                const std::string str_value = query_match[1];
+
+                std::int64_t i64_value;
+                auto [ptr, ec] = std::from_chars(str_value.data(), str_value.data()+str_value.size(), i64_value, 10);
+                if (ec == std::errc::result_out_of_range) {
+                    return http_status::bad_request;
+                }
+
+                std::get<i64_callback>(endpoints_[endpoint].first)(i64_value);
+                return http_status::ok;
+            }
+            case types::u64_field:
+            {
+                std::regex query_pattern(R"(\?value=(\d+))");
+                std::sregex_iterator query(recv_str.begin(), recv_str.end(), query_pattern);
+                std::smatch query_match;
+
+                if (!std::regex_search(recv_str, query_match, query_pattern)) {
+                    return http_status::bad_request;
+                }
+                const std::string str_value = query_match[1];
+
+                std::uint64_t u64_value;
+                auto [ptr, ec] = std::from_chars(str_value.data(), str_value.data()+str_value.size(), u64_value, 10);
+                if (ec == std::errc::result_out_of_range) {
+                    return http_status::bad_request;
+                }
+
+                std::get<u64_callback>(endpoints_[endpoint].first)(u64_value);
+                return http_status::ok;
+            }
+            case types::f32_field:
+            {
+                std::regex query_pattern(R"(\?value=([-+]?\d*\.?\d+([eE][-+]?\d+)?))");
+                std::sregex_iterator query(recv_str.begin(), recv_str.end(), query_pattern);
+                std::smatch query_match;
+
+                if (!std::regex_search(recv_str, query_match, query_pattern)) {
+                    return http_status::bad_request;
+                }
+                const std::string str_value = query_match[1];
+
+                std::float_t f32_value;
+                auto [ptr, ec] = std::from_chars(str_value.data(), str_value.data()+str_value.size(), f32_value);
+                if (ec == std::errc::result_out_of_range) {
+                    return http_status::bad_request;
+                }
+
+                std::get<f32_callback>(endpoints_[endpoint].first)(f32_value);
+                return http_status::ok;
+            }
+            case types::f64_field:
+            {
+                std::regex query_pattern(R"(\?value=([-+]?\d*\.?\d+([eE][-+]?\d+)?))");
+                std::sregex_iterator query(recv_str.begin(), recv_str.end(), query_pattern);
+                std::smatch query_match;
+
+                if (!std::regex_search(recv_str, query_match, query_pattern)) {
+                    return http_status::bad_request;
+                }
+                const std::string str_value = query_match[1];
+
+                std::double_t f64_value;
+                auto [ptr, ec] = std::from_chars(str_value.data(), str_value.data()+str_value.size(), f64_value);
+                if (ec == std::errc::result_out_of_range) {
+                    return http_status::bad_request;
+                }
+
+                std::get<f64_callback>(endpoints_[endpoint].first)(f64_value);
+                return http_status::ok;
+            }
+            default:
+            {
+                break;
+            }
+        }
+
+        return http_status::internal_server_error;
     }
 
     class SessionManager {
@@ -989,7 +1036,7 @@ private:
         SessionManager() = delete;
         SessionManager& operator = (const SessionManager& other) = delete;
 
-        inline void generate_session_id() {
+        inline void generate_session_id() noexcept {
             const char chars[] = {
                 '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
                 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
@@ -1009,7 +1056,7 @@ private:
         }
 
         // [[nodiscard]]
-        std::string create_session() {
+        std::string create_session() noexcept {
             std::lock_guard<std::mutex> lock(http_server_.mutex_);
 
             if (!active_session_id_.has_value() ) {
@@ -1019,7 +1066,7 @@ private:
             return active_session_id_.value();
         }
 
-        void end_session() {
+        void end_session() noexcept {
             std::lock_guard<std::mutex> lock(http_server_.mutex_);
             if (active_session_id_.has_value() ) {
                 active_session_id_.reset();
@@ -1027,7 +1074,7 @@ private:
         }
 
         [[nodiscard]]
-        bool has_active_session() const {
+        bool has_active_session() const noexcept {
             std::lock_guard<std::mutex> lock(http_server_.mutex_);
             return active_session_id_.has_value();
         }
