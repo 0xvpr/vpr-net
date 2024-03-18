@@ -18,5 +18,5 @@ target_compile_options(
 
 target_link_libraries(
     ${PROJECT_NAME}
-    PRIVATE ws2_32
+    PRIVATE ws2_32 secur32
 )

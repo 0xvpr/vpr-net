@@ -27,6 +27,10 @@
 
 #include  <cfloat>
 
+///////////////////////////////////////////////////////////////////////////////
+//
+///////////////////////////////////////////////////////////////////////////////
+
 namespace vprnet {
     class HttpClient;
     class HttpServer;
@@ -39,6 +43,9 @@ namespace vprnet {
         class Headers;
     } // namespace resources
 
+///////////////////////////////////////////////////////////////////////////////
+//
+///////////////////////////////////////////////////////////////////////////////
 
     typedef std::uint32_t button_t;
     enum types : button_t {
@@ -120,6 +127,10 @@ namespace vprnet {
         network_authentication_required = 511
     };
 
+///////////////////////////////////////////////////////////////////////////////
+//
+///////////////////////////////////////////////////////////////////////////////
+
     using void_callback = std::function<void()>;
     using i32_callback  = std::function<void(std::int32_t)>;
     using i64_callback  = std::function<void(std::int64_t)>;
@@ -145,6 +156,10 @@ namespace vprnet {
     typedef std::unique_ptr<vprnet::HttpServer>   http_server_ptr;
     typedef std::shared_ptr<vprnet::HttpRequest>  http_request_ptr;
     typedef std::shared_ptr<vprnet::HttpResponse> http_response_ptr;
+
+///////////////////////////////////////////////////////////////////////////////
+//
+///////////////////////////////////////////////////////////////////////////////
 
     namespace element {
 
@@ -353,11 +368,11 @@ namespace vprnet {
         const std::string js =
             "  <script src=\"https://unpkg.com/boxicons@2.1.4/dist/boxicons.js\"></script>\r\n"
             "  <script>\r\n"
-            "    function call_api(endpoint) {\r\n"
+            "    function fetch_endpoint(endpoint) {\r\n"
             "      fetch(endpoint)\r\n"
             "      .then(response => response.json())\r\n"
             "      .then(data => console.log(data))\r\n"
-            "      .catch(error => console.error('Error:', error));\r\n"
+            "      .catch(error => console.error('error:', error));\r\n"
             "    }\r\n"
             "  </script>\r\n";
 
@@ -365,13 +380,13 @@ namespace vprnet {
             std::stringstream ss;
             ss << "<!DOCTYPE html>\r\n"
                   "<html lang=\"en\">\r\n"
-               << default_css
-               << js
                << "  <head>\r\n"
                   "    <meta charset=\"UTF-8\">\r\n"
                   "    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\r\n"
                   "    <title id=\"snip_content_cell\">" << title << "</title>\r\n"
-                  "  </head>\r\n";
+                  "  </head>\r\n"
+               << default_css
+               << js;
 
             return ss.str();
         };
@@ -397,9 +412,9 @@ namespace vprnet {
 } // namespace vprnet
 
 
+///////////////////////////////////////////////////////////////////////////////
 //
-//
-//
+///////////////////////////////////////////////////////////////////////////////
 
 class vprnet::resources::StatusLine {
 public:
@@ -506,7 +521,7 @@ public:
     HttpResponse(const HttpResponse&& other) = delete;
     HttpResponse& operator = (const HttpResponse&& other) = delete;
 
-    HttpResponse(const resources::StatusLine&& status_line, resources::Headers headers, const std::string&& payload)
+    HttpResponse(const resources::StatusLine&& status_line, resources::Headers&& headers, const std::string& payload)
     : status_line_ ( status_line ),
       headers_     ( headers ),
       payload_     ( payload ),
@@ -564,7 +579,7 @@ public:
 
         WSACleanup();
     }
-
+    
     inline int serve() noexcept {
         while ((client_socket_ = accept(server_socket_, (sockaddr *)&client_addr_, &client_addr_length_)) != INVALID_SOCKET) {
             if (client_socket_ == INVALID_SOCKET) {
@@ -575,112 +590,51 @@ public:
             recv(client_socket_, buffer, sizeof(buffer)-1, 0);
             std::string recv_str(buffer);
 
-            if (!session_manager_.has_active_session()) {
-                session_manager_.create_session();
-
-                auto response = HttpResponse(
-                    resources::StatusLine( "HTTP/1.1", http_status::ok ),
-                    resources::Headers{
-                        {
-                            resources::Header( "Content-Type", "text/html" ),
-                            resources::Header{ "Set-Cookie", "SessionID=" + session_manager_.active_session_id() + "; SameSite=Lax\r\n"}
-                        }
-                    },
-                    generate_payload()
-                );
-                send(client_socket_, response.raw_data(), response.size(), 0);
-                closesocket(client_socket_);
-
-                continue;
-            }
-
-
-            if (!validate_session(recv_str)) {
-                auto err_response = HttpResponse(
-                    resources::StatusLine( "HTTP/1.1", http_status::im_used ),
-                    resources::Headers{
-                        {
-                            resources::Header{ "Content-Type", "text/plain" },
-                        }
-                    },
-                    std::string("Error 226. Currently in use. Disconnect from other session to proceed.\r\n")
-                );
-                send(client_socket_, err_response.raw_data(), err_response.size(), 0);
-                closesocket(client_socket_);
-
-                continue;
-            }
-
             std::regex endpoint_pattern("GET /[a-zA-Z0-9]*");
             std::sregex_iterator endpoint_match(recv_str.begin(), recv_str.end(), endpoint_pattern);
             std::sregex_iterator endpoint_end;
 
             if (endpoint_match == endpoint_end) {
-                auto err_response = HttpResponse(
-                    resources::StatusLine( "HTTP/1.1", http_status::not_found ),
-                    resources::Headers{
-                        {
-                            resources::Header{ "Content-Type", "text/plain" },
-                            resources::Header{ "Set-Cookie", "SessionID=" + session_manager_.active_session_id() + "; SameSite=Lax\r\n"}
-                        }
-                    },
-                    std::string("Error 404. Page not found.\r\n")
-                );
-                send(client_socket_, err_response.raw_data(), err_response.size(), 0);
+                send_plain_response(http_status::not_found, std::string("Error 404. Page not found.\r\n"));
                 closesocket(client_socket_);
 
                 continue;
             }
 
             std::string endpoint = std::smatch(*endpoint_match).str().substr(4);
-            if (endpoint == "/" || endpoint == "/home")
-            {
-                auto response = HttpResponse(
-                    resources::StatusLine( "HTTP/1.1", http_status::ok ),
-                    resources::Headers{
-                        {
-                            resources::Header( "Content-Type", "text/html" ),
-                            resources::Header{ "Set-Cookie", "SessionID=" + session_manager_.active_session_id() + "; SameSite=Lax\r\n"}
-                        }
-                    },
-                    generate_payload()
-                );
-                send(client_socket_, response.raw_data(), response.size(), 0);
+            if (!session_manager_.has_active_session() ) {
+                if (endpoint != "/term") {
+                    session_manager_.create_session();
+                    send_html_response_and_set_cookie(http_status::ok, generate_payload());
+                }
+
+                closesocket(client_socket_);
+                continue;
+            }
+
+            if (!validate_session(recv_str)) {
+                send_html_response(http_status::im_used, std::string("Error 226. Currently in use. Disconnect from other session to proceed.\r\n"));
                 closesocket(client_socket_);
 
                 continue;
             }
-            endpoint = std::smatch(*endpoint_match).str().substr(8);
-            if (endpoint == "/terminate" )
-            {
-                session_manager_.end_session();
-                auto response = HttpResponse(
-                    resources::StatusLine( "HTTP/1.1", http_status::ok ),
-                    resources::Headers{
-                        {
-                            resources::Header( "Content-Type", "text/html" ),
-                        }
-                    },
-                    generate_payload()
-                );
-                send(client_socket_, response.raw_data(), response.size(), 0);
+
+            if (endpoint == "/" || endpoint == "/home" || endpoint == "/index.html") {
+                send_html_response_and_set_cookie(http_status::ok, generate_payload());
                 closesocket(client_socket_);
 
+                continue;
+            }
+
+            if (endpoint == "/term") {
+                session_manager_.end_session();
+                send_plain_response(http_status::ok, std::string("Session successfully terminated."));
+                closesocket(client_socket_);
                 continue;
             }
 
             if (endpoints_.find(endpoint) == endpoints_.end()) {
-                auto err_response = HttpResponse(
-                    resources::StatusLine( "HTTP/1.1", http_status::not_found ),
-                    resources::Headers{
-                        {
-                            resources::Header{ "Content-Type", "text/plain" },
-                            resources::Header{ "Set-Cookie", "SessionID=" + session_manager_.active_session_id() + "; SameSite=Lax\r\n"}
-                        }
-                    },
-                    std::string("Error 404. Page not found.\r\n")
-                );
-                send(client_socket_, err_response.raw_data(), err_response.size(), 0);
+                send_plain_response(http_status::not_found, std::string("Error 404. Page not found.\r\n"));
                 closesocket(client_socket_);
 
                 continue;
@@ -803,18 +757,7 @@ public:
                 }
             }
 
-            auto response = HttpResponse(
-                resources::StatusLine( "HTTP/1.1", status ),
-                resources::Headers{
-                    {
-                        resources::Header( "Content-Type", "text/html" ),
-                        resources::Header{ "Set-Cookie", "SessionID=" + session_manager_.active_session_id() + "; SameSite=Lax\r\n"}
-                    }
-                },
-                generate_payload()
-            );
-            send(client_socket_, response.raw_data(), response.size(), 0);
-
+            send_html_response(status, generate_payload());
             closesocket(client_socket_);
         }
 
@@ -886,12 +829,12 @@ protected:
                     switch (type) {
                         case types::button:
                         {
-                            body += "    <button id=\"snip_content_cell\" onclick=\"call_api('" + endpoint + "')\">Activate " + endpoint.substr(1) + "</button>\r\n";
+                            body += "    <button id=\"snip_content_cell\" onclick=\"fetch_endpoint('" + endpoint + "')\">Activate " + endpoint.substr(1) + "</button>\r\n";
                             break;
                         }
                         case types::toggle:
                         {
-                            body += "    <button id=\"snip_content_cell\" onclick=\"call_api('" + endpoint + "')\">Toggle " + endpoint.substr(1) + "</button>\r\n";
+                            body += "    <button id=\"snip_content_cell\" onclick=\"fetch_endpoint('" + endpoint + "')\">Toggle " + endpoint.substr(1) + "</button>\r\n";
                             break;
                         }
                         case types::i32_field:
@@ -900,7 +843,7 @@ protected:
                         case types::u64_field:
                         {
                             body += "    <form id=\"snip_content_cell\">\r\n"
-                                    "      <input colspan=\"3\" type=\"number\" name=\"value\" placeholder=\"Set " + endpoint.substr(1) + " value...\" onclick=\"call_api_with_value('" + endpoint + "')\">\r\n"
+                                    "      <input colspan=\"3\" type=\"number\" name=\"value\" placeholder=\"Set " + endpoint.substr(1) + " value...\" onclick=\"fetch_endpoint_with_value('" + endpoint + "')\">\r\n"
                                     "    </form>";
                             break;
                         }
@@ -920,7 +863,7 @@ protected:
                     body += "    <br>\r\n";
 
                 }
-                body += "    <button id=\"snip_content_cell\" onclick=\"call_api('/terminate')\">terminate session</button>\r\n";
+                body += "    <a href='/term'><button id=\"snip_content_cell\">terminate session</button></a>\r\n";
 
                 return body;
            }()
@@ -934,6 +877,40 @@ protected:
 
     inline HttpServer operator = (const HttpServer& other) = delete;
 private:
+    inline void send_plain_response(status_t status, const std::string&& payload) const noexcept {
+        HttpResponse response(
+            resources::StatusLine( "HTTP/1.1", status ),
+            resources::Headers({
+                resources::Header( "Content-Type", "text/plain" ),
+            }),
+            payload
+        );
+        send(client_socket_, response.raw_data(), response.size(), 0);
+    }
+
+    inline void send_html_response(status_t status, const std::string&& payload) const noexcept {
+        HttpResponse response(
+            resources::StatusLine( "HTTP/1.1", status ),
+            resources::Headers({
+                resources::Header( "Content-Type", "text/html" ),
+            }),
+            payload
+        );
+        send(client_socket_, response.raw_data(), response.size(), 0);
+    }
+
+    inline void send_html_response_and_set_cookie(status_t status, const std::string&& payload) const noexcept {
+        HttpResponse response(
+            resources::StatusLine( "HTTP/1.1", status ),
+            resources::Headers({
+                resources::Header( "Content-Type", "text/html" ),
+                resources::Header( "Set-Cookie", "SessionID=" + session_manager_.active_session_id() + "; SameSite=Lax\r\n")
+            }),
+            payload
+        );
+        send(client_socket_, response.raw_data(), response.size(), 0);
+    }
+
     inline bool validate_session(const std::string& recv_str) const {
         std::regex query_pattern(R"(Cookie: SessionID=([A-Za-z0-9]{256}))");
         std::sregex_iterator query(recv_str.begin(), recv_str.end(), query_pattern);
@@ -952,6 +929,7 @@ private:
     private:
         const HttpServer&                http_server_;
         std::optional<std::string> active_session_id_;
+        bool                           session_ready_;
 
     public:
         SessionManager(const HttpServer& http_server)
@@ -962,11 +940,15 @@ private:
         SessionManager& operator = (const SessionManager& other) = delete;
 
         inline void generate_session_id() {
-            const std::string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+            const char chars[] = {
+                '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
+                'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
+                'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'
+            };
 
             std::random_device rd;
             std::mt19937 generator(rd());
-            std::uniform_int_distribution<size_t> distribution(0, chars.size() - 1);
+            std::uniform_int_distribution<size_t> distribution(0, sizeof(chars)-1);
 
             std::string random_string(256, 0);
             for (size_t i = 0; i < random_string.size(); ++i) {
