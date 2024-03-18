@@ -19,10 +19,10 @@ int main() {
         // Defaults to vprnet::types::toggle
     );
 
-    server.set_endpoint( "/c", (vprnet::i32_callback)[](auto value) {
+    server.set_endpoint( "/c", (vprnet::u64_callback)[](auto value) {
             std::cout << "C set to " << value << "\n";
         },
-        vprnet::types::i32_field
+        vprnet::types::u64_field
     );
 
     server.serve();
