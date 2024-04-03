@@ -35,7 +35,7 @@ class Vprnet(ConanFile):
         self.info.header_only = True
 
     settings = "os", "compiler", "build_type", "arch"
-    exports_sources = "include/vprnet.hpp", "CMakeLists.txt"
+    exports_sources = "vpr/vprnet.hpp", "CMakeLists.txt"
 
     def build(self):
         cmake = CMake(self)
@@ -52,6 +52,6 @@ class Vprnet(ConanFile):
         tc.generate()
 
     def package(self):
-        self.copy("vprnet.hpp", dst="include", src="include")
+        self.copy("vprnet.hpp", dst="vpr", src="vpr")
         cmake = CMake(self)
         cmake.install()
