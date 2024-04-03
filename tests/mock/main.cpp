@@ -1,4 +1,4 @@
-#include "vprnet.hpp"
+#include "vpr/vprnet.hpp"
 
 #include <iostream>
 
