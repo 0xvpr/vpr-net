@@ -12,8 +12,10 @@
 #include  <functional>
 #include  <algorithm>
 #include  <charconv>
+#include  <ranges>
 #include  <random>
 
+#include  <unordered_map>
 #include  <sstream>
 #include  <string>
 #include  <vector>
@@ -22,16 +24,15 @@
 #include  <optional>
 #include  <variant>
 
-#include  <iostream>
-#include  <fstream> // TODO logging
+// #include  <fstream> // TODO logging
 
 #include  <cstring>
 #include  <cfloat>
 #include  <cerrno>
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 //
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
 namespace vprnet {
     class HttpClient;
@@ -45,9 +46,9 @@ namespace vprnet {
         class Headers;
     } // namespace resources
 
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 //
-///////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
 
     typedef std::uint32_t button_t;
     enum types : button_t {
@@ -1032,7 +1033,7 @@ private:
         SessionManager& operator = (const SessionManager& other) = delete;
 
         inline void generate_session_id() noexcept {
-            const char chars[] = {
+            constexpr char chars[] = {
                 '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
                 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
                 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z'
@@ -1043,25 +1044,22 @@ private:
             std::uniform_int_distribution<size_t> distribution(0, sizeof(chars)-1);
 
             std::string random_string(256, 0);
-            for (size_t i = 0; i < random_string.size(); ++i) {
-                random_string[i] = chars[distribution(generator)];
+            for (auto& c : random_string) {
+                c = chars[distribution(generator)];
             }
 
             active_session_id_ = random_string;
         }
 
-        // [[nodiscard]]
-        std::string create_session() noexcept {
+        inline void create_session() noexcept {
             std::lock_guard<std::mutex> lock(http_server_.mutex_);
 
             if (!active_session_id_.has_value() ) {
                 generate_session_id();
             }
-
-            return active_session_id_.value();
         }
 
-        void end_session() noexcept {
+        inline void end_session() noexcept {
             std::lock_guard<std::mutex> lock(http_server_.mutex_);
             if (active_session_id_.has_value() ) {
                 active_session_id_.reset();
@@ -1069,12 +1067,12 @@ private:
         }
 
         [[nodiscard]]
-        bool has_active_session() const noexcept {
+        inline bool has_active_session() const noexcept {
             std::lock_guard<std::mutex> lock(http_server_.mutex_);
             return active_session_id_.has_value();
         }
 
-        const std::string& active_session_id() const { return active_session_id_.value(); }
+        const std::string& active_session_id() const noexcept { return active_session_id_.value(); }
     }; // SessionManager
 
     static inline std::mutex                   mutex_;
